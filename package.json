@@ -1,0 +1,53 @@
+{
+  "name": "just-the-schema",
+  "version": "0.1.0",
+  "description": "TypeSpec emitter that emits Zod schemas",
+  "keywords": [
+    "typespec",
+    "typespec-emitter",
+    "zod",
+    "codegen",
+    "schema",
+    "validation"
+  ],
+  "license": "MIT",
+  "author": "Daniel Kneip",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daniel-kneip/just-the-schema.git"
+  },
+  "homepage": "https://github.com/daniel-kneip/just-the-schema#readme",
+  "bugs": "https://github.com/daniel-kneip/just-the-schema/issues",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": {
+      "typespec": "./lib/main.tsp",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "lib"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "sample": "tsp compile sample",
+    "prepack": "tsc"
+  },
+  "peerDependencies": {
+    "@typespec/compiler": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@typespec/compiler": "1.13.0",
+    "typescript": "^5.9.3",
+    "vitest": "4.1.8",
+    "zod": "^4.0.0"
+  },
+  "packageManager": "pnpm@10.11.1"
+}

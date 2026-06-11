@@ -1,0 +1,3 @@
+emit:
+  - "../"
+output-dir: "{project-root}/tsp-output"
