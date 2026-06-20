@@ -16,7 +16,11 @@ async function emit(code: string): Promise<string> {
 function load(code: string): Record<string, z.ZodType> {
   const body = code.replace(/^import .*$/gm, "").replace(/^export const /gm, "const ");
   const names = [...code.matchAll(/^export const (\w+)/gm)].map((m) => m[1]);
-  return new Function("z", `${body}\nreturn { ${names.join(", ")} };`)(z);
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- intentionally evaluating the emitted schema against the real zod runtime
+  const factory = new Function("z", `${body}\nreturn { ${names.join(", ")} };`) as (
+    z: typeof import("zod").z,
+  ) => Record<string, z.ZodType>;
+  return factory(z);
 }
 
 describe("emitSchemas", () => {
@@ -151,7 +155,10 @@ describe("emitSchemas", () => {
     expect(result).toContain("meta: z.record(z.string(), z.string())");
     expect(result).toContain("pair: z.tuple([z.string(), z.int()])");
     const { Bag } = load(result);
-    expect(Bag.parse({ meta: { a: "b" }, pair: ["x", 1] })).toEqual({ meta: { a: "b" }, pair: ["x", 1] });
+    expect(Bag.parse({ meta: { a: "b" }, pair: ["x", 1] })).toEqual({
+      meta: { a: "b" },
+      pair: ["x", 1],
+    });
   });
 
   it("emits Record spreads as catchall", async () => {
@@ -269,7 +276,9 @@ describe("emitSchemas", () => {
     const result = await emit(`
       model Link { href: "https://\${string}/pets/\${int32}"; }
     `);
-    expect(result).toContain('href: z.templateLiteral(["https://", z.string(), "/pets/", z.int()])');
+    expect(result).toContain(
+      'href: z.templateLiteral(["https://", z.string(), "/pets/", z.int()])',
+    );
     const { Link } = load(result);
     expect(Link.parse({ href: "https://x/pets/1" })).toBeTruthy();
     expect(() => Link.parse({ href: "https://x/pets/a" })).toThrow();
@@ -331,5 +340,80 @@ describe("emitSchemas", () => {
     `);
     expect(result).toContain("export const Thing = z.object({");
     expect(result).not.toContain("ServiceOptions");
+  });
+
+  it("references types from nested namespaces", async () => {
+    const result = await emit(`
+      namespace A.B;
+      model Inner { x: string; }
+      model Outer { inner: Inner; }
+    `);
+    expect(result).toContain("inner: Inner");
+    expect(result.indexOf("export const Inner")).toBeLessThan(result.indexOf("export const Outer"));
+  });
+
+  it("references enums used as property types", async () => {
+    const result = await emit(`
+      enum Color { Red: "red", Blue: "blue" }
+      model Paint { color: Color; }
+    `);
+    expect(result).toContain('export const Color = z.enum(["red", "blue"]);');
+    expect(result).toContain("color: Color");
+  });
+
+  it("emits scalars without a base as z.unknown", async () => {
+    const result = await emit(`
+      scalar mystery;
+      model M { x: mystery; }
+    `);
+    expect(result).toContain("export const mystery = z.unknown();");
+    expect(result).toContain("x: mystery");
+  });
+
+  it("inlines generic array aliases", async () => {
+    const result = await emit(`
+      model List<T> is T[];
+      model Box { items: List<string>; }
+    `);
+    expect(result).not.toContain("export const List");
+    expect(result).toContain("items: z.array(z.string())");
+  });
+
+  it("inlines generic record aliases", async () => {
+    const result = await emit(`
+      model Dict<T> is Record<T>;
+      model Box { data: Dict<int32>; }
+    `);
+    expect(result).not.toContain("export const Dict");
+    expect(result).toContain("data: z.record(z.string(), z.int())");
+  });
+
+  it("wraps recursive declarations in z.lazy", async () => {
+    const result = await emit(`
+      union Json {
+        str: string,
+        arr: Json[],
+      }
+    `);
+    expect(result).toContain("export const Json = z.lazy(() =>");
+    const { Json } = load(result);
+    const value = ["a", ["b", []]];
+    expect(Json.parse(value)).toEqual(value);
+    expect(Json.parse("leaf")).toBe("leaf");
+  });
+
+  it("emits never as z.never", async () => {
+    const result = await emit(`
+      model M { n: never; }
+    `);
+    expect(result).toContain("n: z.never()");
+  });
+
+  it("collapses constant string templates to literals", async () => {
+    const result = await emit(`
+      alias Host = "host";
+      model M { s: "https://\${Host}/v1"; }
+    `);
+    expect(result).toContain('s: z.literal("https://host/v1")');
   });
 });

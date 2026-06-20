@@ -1,5 +1,6 @@
 import {
   Enum,
+  IntrinsicType,
   Model,
   ModelProperty,
   Namespace,
@@ -77,7 +78,8 @@ export function emitSchemas(program: Program): string {
 
 function importLines(ctx: Context): string[] {
   return [...ctx.imports].map(
-    ([module, names]) => `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(module)};`,
+    ([module, names]) =>
+      `import { ${[...names].sort().join(", ")} } from ${JSON.stringify(module)};`,
   );
 }
 
@@ -93,7 +95,7 @@ function collectNamespace(ctx: Context, ns: Namespace): void {
 }
 
 function emitDeclaration(ctx: Context, decl: Declaration): void {
-  if (ctx.status.get(decl)) return;
+  if (!decl.name || ctx.status.get(decl)) return;
   // Zod consts cannot be generic: skip template declarations, instantiations are inlined.
   if (decl.kind !== "Enum" && isTemplateDeclaration(decl)) {
     ctx.status.set(decl, "done");
@@ -140,7 +142,7 @@ function objectExpr(ctx: Context, model: Model, indent: string): string {
   });
   const head = base ? `${base}.extend` : "z.object";
   let expr = chunks.length === 0 ? `${head}({})` : `${head}({\n${chunks.join(",\n")}\n${indent}})`;
-  if (model.indexer && model.indexer.key.name === "string") {
+  if (model.indexer?.key.name === "string") {
     expr += `.catchall(${typeToExpr(ctx, model.indexer.value, indent)})`;
   }
   return expr;
@@ -148,7 +150,7 @@ function objectExpr(ctx: Context, model: Model, indent: string): string {
 
 function baseRef(ctx: Context, model: Model): string | undefined {
   const base = model.baseModel;
-  if (!base || !base.name || inStdNamespace(base) || base.templateMapper) return undefined;
+  if (!base?.name || inStdNamespace(base) || base.templateMapper) return undefined;
   emitDeclaration(ctx, base);
   return base.name;
 }
@@ -173,9 +175,9 @@ function constraintChecks(ctx: Context, type: Scalar | ModelProperty): string {
   const suffix = bigintSuffix(type);
   let checks = "";
   const min = getMinValue(p, type) ?? getMinLength(p, type) ?? getMinItems(p, type);
-  if (min !== undefined) checks += `.min(${min}${suffix})`;
+  if (min !== undefined) checks += `.min(${String(min)}${suffix})`;
   const max = getMaxValue(p, type) ?? getMaxLength(p, type) ?? getMaxItems(p, type);
-  if (max !== undefined) checks += `.max(${max}${suffix})`;
+  if (max !== undefined) checks += `.max(${String(max)}${suffix})`;
   const pattern = getPattern(p, type);
   if (pattern !== undefined) checks += `.regex(/${pattern.replace(/\//g, "\\/")}/)`;
   return checks;
@@ -242,36 +244,53 @@ function namedRef(ctx: Context, type: Declaration): string | undefined {
 
 function typeToExpr(ctx: Context, type: Type, indent: string): string {
   switch (type.kind) {
-    case "Model": {
-      // Inside template declarations Array<T>/Record<T> instances carry no
-      // indexer yet, so resolve them via their template argument instead.
-      if ((type.name === "Array" || type.name === "Record") && inStdNamespace(type)) {
-        const element = type.indexer?.value ?? templateArg(type);
-        const elementExpr = element ? typeToExpr(ctx, element, indent) : "z.unknown()";
-        return type.name === "Array"
-          ? `z.array(${elementExpr})`
-          : `z.record(z.string(), ${elementExpr})`;
-      }
-      const ref = namedRef(ctx, type);
-      if (ref) return ref;
-      if (isArrayModelType(type)) return `z.array(${typeToExpr(ctx, type.indexer.value, indent)})`;
-      if (isRecordModelType(type)) {
-        return `z.record(z.string(), ${typeToExpr(ctx, type.indexer.value, indent)})`;
-      }
-      return objectExpr(ctx, type, indent);
-    }
+    case "Model":
+      return modelToExpr(ctx, type, indent);
     case "Scalar":
-      return inStdNamespace(type) ? stdScalarExpr(ctx, type) : (namedRef(ctx, type) ?? "z.unknown()");
+      return inStdNamespace(type)
+        ? stdScalarExpr(ctx, type)
+        : (namedRef(ctx, type) ?? "z.unknown()");
     case "Enum":
       return namedRef(ctx, type) ?? "z.unknown()";
-    case "EnumMember":
-      return `z.literal(${JSON.stringify(type.value ?? type.name)})`;
-    case "Union": {
-      const ref = type.name ? namedRef(ctx, type) : undefined;
-      return ref ?? unionExpr(ctx, type, indent);
-    }
+    case "Union":
+      return unionToExpr(ctx, type, indent);
     case "Tuple":
       return `z.tuple([${type.values.map((value) => typeToExpr(ctx, value, indent)).join(", ")}])`;
+    default:
+      return literalToExpr(ctx, type, indent);
+  }
+}
+
+function modelToExpr(ctx: Context, type: Model, indent: string): string {
+  if ((type.name === "Array" || type.name === "Record") && inStdNamespace(type)) {
+    return stdCollectionExpr(ctx, type, indent);
+  }
+  const ref = namedRef(ctx, type);
+  if (ref) return ref;
+  if (isArrayModelType(type)) return `z.array(${typeToExpr(ctx, type.indexer.value, indent)})`;
+  if (isRecordModelType(type)) {
+    return `z.record(z.string(), ${typeToExpr(ctx, type.indexer.value, indent)})`;
+  }
+  return objectExpr(ctx, type, indent);
+}
+
+// Inside template declarations Array<T>/Record<T> instances carry no indexer
+// yet, so resolve them via their template argument instead.
+function stdCollectionExpr(ctx: Context, type: Model, indent: string): string {
+  const element = type.indexer?.value ?? templateArg(type);
+  const elementExpr = element ? typeToExpr(ctx, element, indent) : "z.unknown()";
+  return type.name === "Array" ? `z.array(${elementExpr})` : `z.record(z.string(), ${elementExpr})`;
+}
+
+function unionToExpr(ctx: Context, union: Union, indent: string): string {
+  const ref = union.name ? namedRef(ctx, union) : undefined;
+  return ref ?? unionExpr(ctx, union, indent);
+}
+
+function literalToExpr(ctx: Context, type: Type, indent: string): string {
+  switch (type.kind) {
+    case "EnumMember":
+      return `z.literal(${JSON.stringify(type.value ?? type.name)})`;
     case "String":
     case "Number":
     case "Boolean":
@@ -279,16 +298,20 @@ function typeToExpr(ctx: Context, type: Type, indent: string): string {
     case "StringTemplate":
       return templateLiteralExpr(ctx, type, indent);
     case "Intrinsic":
-      switch (type.name) {
-        case "null":
-          return "z.null()";
-        case "void":
-          return "z.void()";
-        case "never":
-          return "z.never()";
-        default:
-          return "z.unknown()";
-      }
+      return intrinsicToExpr(type);
+    default:
+      return "z.unknown()";
+  }
+}
+
+function intrinsicToExpr(type: IntrinsicType): string {
+  switch (type.name) {
+    case "null":
+      return "z.null()";
+    case "void":
+      return "z.void()";
+    case "never":
+      return "z.never()";
     default:
       return "z.unknown()";
   }
