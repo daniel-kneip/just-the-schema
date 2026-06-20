@@ -10,6 +10,8 @@ export interface ZodOverride {
 
 // Decorator arguments declared as `valueof string` arrive as plain strings;
 // without the extern declaration (e.g. in tests) they arrive as StringLiteral types.
+function asString(value: string | { value: string }): string;
+function asString(value: string | { value: string } | undefined): string | undefined;
 function asString(value: string | { value: string } | undefined): string | undefined {
   return typeof value === "object" ? value.value : value;
 }
