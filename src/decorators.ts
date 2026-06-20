@@ -21,7 +21,7 @@ function $zodType(
   importFrom?: string,
 ): void {
   context.program.stateMap(keys.zodType).set(target, {
-    type: asString(type)!,
+    type: asString(type),
     from: asString(importFrom),
   } satisfies ZodOverride);
 }

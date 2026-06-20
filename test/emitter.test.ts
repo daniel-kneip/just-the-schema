@@ -16,7 +16,11 @@ async function emit(code: string): Promise<string> {
 function load(code: string): Record<string, z.ZodType> {
   const body = code.replace(/^import .*$/gm, "").replace(/^export const /gm, "const ");
   const names = [...code.matchAll(/^export const (\w+)/gm)].map((m) => m[1]);
-  return new Function("z", `${body}\nreturn { ${names.join(", ")} };`)(z);
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval -- intentionally evaluating the emitted schema against the real zod runtime
+  const factory = new Function("z", `${body}\nreturn { ${names.join(", ")} };`) as (
+    z: typeof import("zod").z,
+  ) => Record<string, z.ZodType>;
+  return factory(z);
 }
 
 describe("emitSchemas", () => {
@@ -151,7 +155,10 @@ describe("emitSchemas", () => {
     expect(result).toContain("meta: z.record(z.string(), z.string())");
     expect(result).toContain("pair: z.tuple([z.string(), z.int()])");
     const { Bag } = load(result);
-    expect(Bag.parse({ meta: { a: "b" }, pair: ["x", 1] })).toEqual({ meta: { a: "b" }, pair: ["x", 1] });
+    expect(Bag.parse({ meta: { a: "b" }, pair: ["x", 1] })).toEqual({
+      meta: { a: "b" },
+      pair: ["x", 1],
+    });
   });
 
   it("emits Record spreads as catchall", async () => {
@@ -269,7 +276,9 @@ describe("emitSchemas", () => {
     const result = await emit(`
       model Link { href: "https://\${string}/pets/\${int32}"; }
     `);
-    expect(result).toContain('href: z.templateLiteral(["https://", z.string(), "/pets/", z.int()])');
+    expect(result).toContain(
+      'href: z.templateLiteral(["https://", z.string(), "/pets/", z.int()])',
+    );
     const { Link } = load(result);
     expect(Link.parse({ href: "https://x/pets/1" })).toBeTruthy();
     expect(() => Link.parse({ href: "https://x/pets/a" })).toThrow();
