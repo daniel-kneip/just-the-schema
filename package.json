@@ -35,10 +35,18 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "sample": "tsp compile sample",
-    "prepack": "tsc"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "knip": "knip",
+    "check:package": "publint && attw --pack . --ignore-rules cjs-resolves-to-esm",
+    "check": "pnpm lint && pnpm format:check && pnpm knip && pnpm test:coverage",
+    "prepack": "tsc -p tsconfig.build.json"
   },
   "peerDependencies": {
     "@typespec/compiler": ">=1.0.0",
@@ -47,6 +55,15 @@
   "devDependencies": {
     "@typespec/compiler": "1.13.0",
     "typescript": "5.9.3",
+    "@arethetypeswrong/cli": "0.18.3",
+    "@eslint/js": "10.0.1",
+    "@vitest/coverage-v8": "4.1.9",
+    "eslint": "10.5.0",
+    "eslint-config-prettier": "10.1.8",
+    "knip": "6.17.1",
+    "prettier": "3.8.4",
+    "publint": "0.3.21",
+    "typescript-eslint": "8.61.1",
     "vitest": "4.1.9",
     "zod": "4.4.3"
   },
