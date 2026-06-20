@@ -1,0 +1,38 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "separateMultipleMajor": true,
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "description": "Bundle all non-major npm updates into one PR and auto-merge after CI",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "npm minor and patch",
+      "automerge": true
+    },
+    {
+      "description": "Keep TypeScript on 5.x (TypeSpec emitter compatibility)",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6"
+    },
+    {
+      "description": "Bundle all GitHub Actions updates into one weekly PR (reviewed manually)",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "schedule": ["at any time"],
+    "minimumReleaseAge": "0 days"
+  },
+  "osvVulnerabilityAlerts": true
+}
