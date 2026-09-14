@@ -49,11 +49,11 @@
     "prepack": "tsc -p tsconfig.build.json"
   },
   "peerDependencies": {
-    "@typespec/compiler": ">=1.0.0",
+    "@typespec/compiler": ">=1.16.0",
     "zod": ">=4.0.0"
   },
   "devDependencies": {
-    "@typespec/compiler": "1.15.0",
+    "@typespec/compiler": "1.16.0",
     "typescript": "5.9.3",
     "@arethetypeswrong/cli": "0.18.5",
     "@eslint/js": "10.0.1",
