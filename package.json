@@ -67,5 +67,5 @@
     "vitest": "4.1.12",
     "zod": "4.6.7"
   },
-  "packageManager": "pnpm@11.28.6"
+  "packageManager": "pnpm@12.15.0"
 }
