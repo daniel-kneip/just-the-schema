@@ -53,17 +53,17 @@
     "zod": ">=4.0.0"
   },
   "devDependencies": {
-    "@typespec/compiler": "1.17.0",
+    "@typespec/compiler": "1.18.0",
     "typescript": "5.9.3",
     "@arethetypeswrong/cli": "0.18.5",
     "@eslint/js": "10.0.1",
     "@vitest/coverage-v8": "4.1.12",
     "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
-    "knip": "6.44.1",
-    "prettier": "3.9.10",
+    "knip": "6.45.1",
+    "prettier": "3.10.1",
     "publint": "0.3.25",
-    "typescript-eslint": "8.72.1",
+    "typescript-eslint": "8.72.2",
     "vitest": "4.1.12",
     "zod": "4.6.7"
   },
